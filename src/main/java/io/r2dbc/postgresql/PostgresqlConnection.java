@@ -19,7 +19,7 @@ package io.r2dbc.postgresql;
 import io.r2dbc.postgresql.api.Notification;
 import io.r2dbc.postgresql.api.PostgresqlResult;
 import io.r2dbc.postgresql.api.PostgresqlStatement;
-import io.r2dbc.postgresql.client.Client;
+import io.r2dbc.postgresql.client.ProtocolConnection;
 import io.r2dbc.postgresql.client.PortalNameSupplier;
 import io.r2dbc.postgresql.client.SimpleQueryMessageFlow;
 import io.r2dbc.postgresql.client.TransactionStatus;
@@ -58,7 +58,7 @@ final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlCo
 
     private final ConnectionContext context;
 
-    private final Client client;
+    private final ProtocolConnection protocolConnection;
 
     private final Codecs codecs;
 
@@ -68,16 +68,16 @@ final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlCo
 
     private volatile IsolationLevel isolationLevel;
 
-    PostgresqlConnection(Client client, Codecs codecs, PortalNameSupplier portalNameSupplier, StatementCache statementCache, IsolationLevel isolationLevel, boolean forceBinary) {
-        this.context = new ConnectionContext(client, codecs, this, forceBinary, portalNameSupplier, statementCache);
-        this.client = Assert.requireNonNull(client, "client must not be null");
+    PostgresqlConnection(ProtocolConnection protocolConnection, Codecs codecs, PortalNameSupplier portalNameSupplier, StatementCache statementCache, IsolationLevel isolationLevel, boolean forceBinary) {
+        this.context = new ConnectionContext(protocolConnection, codecs, this, forceBinary, portalNameSupplier, statementCache);
+        this.protocolConnection = Assert.requireNonNull(protocolConnection, "client must not be null");
         this.codecs = Assert.requireNonNull(codecs, "codecs must not be null");
         this.isolationLevel = Assert.requireNonNull(isolationLevel, "isolationLevel must not be null");
         this.validationQuery = new SimpleQueryPostgresqlStatement(this.context, "SELECT 1").fetchSize(0).execute().flatMap(PostgresqlResult::getRowsUpdated);
     }
 
-    Client getClient() {
-        return this.client;
+    ProtocolConnection getProtocolConnection() {
+        return this.protocolConnection;
     }
 
     @Override
@@ -94,7 +94,7 @@ final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlCo
 
     @Override
     public Mono<Void> close() {
-        return this.client.close().doOnSubscribe(subscription -> {
+        return this.protocolConnection.close().doOnSubscribe(subscription -> {
 
             NotificationAdapter notificationAdapter = this.notificationAdapter.get();
 
@@ -106,7 +106,7 @@ final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlCo
 
     @Override
     public Mono<Void> cancelRequest() {
-        return this.client.cancelRequest();
+        return this.protocolConnection.cancelRequest();
     }
 
     @Override
@@ -170,7 +170,7 @@ final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlCo
             notifications = new NotificationAdapter();
 
             if (this.notificationAdapter.compareAndSet(null, notifications)) {
-                notifications.register(this.client);
+                notifications.register(this.protocolConnection);
             } else {
                 notifications = this.notificationAdapter.get();
             }
@@ -181,7 +181,7 @@ final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlCo
 
     @Override
     public PostgresqlConnectionMetadata getMetadata() {
-        return new PostgresqlConnectionMetadata(this.client.getVersion());
+        return new PostgresqlConnectionMetadata(this.protocolConnection.getVersion());
     }
 
     @Override
@@ -192,7 +192,7 @@ final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlCo
     @Override
     public boolean isAutoCommit() {
 
-        if (this.client.getTransactionStatus() == IDLE) {
+        if (this.protocolConnection.getTransactionStatus() == IDLE) {
             return true;
         }
 
@@ -276,7 +276,7 @@ final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlCo
     @Override
     public String toString() {
         return "PostgresqlConnection{" +
-            "client=" + this.client +
+            "client=" + this.protocolConnection +
             ", codecs=" + this.codecs +
             '}';
     }
@@ -285,12 +285,12 @@ final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlCo
     public Mono<Boolean> validate(ValidationDepth depth) {
 
         if (depth == ValidationDepth.LOCAL) {
-            return Mono.fromSupplier(this.client::isConnected);
+            return Mono.fromSupplier(this.protocolConnection::isConnected);
         }
 
         return Mono.create(sink -> {
 
-            if (!this.client.isConnected()) {
+            if (!this.protocolConnection.isConnected()) {
                 sink.success(false);
                 return;
             }
@@ -332,18 +332,18 @@ final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlCo
     }
 
     private Mono<Void> useTransactionStatus(Function<TransactionStatus, Publisher<?>> f) {
-        return Flux.defer(() -> f.apply(this.client.getTransactionStatus()))
+        return Flux.defer(() -> f.apply(this.protocolConnection.getTransactionStatus()))
             .as(Operators::discardOnCancel)
             .then();
     }
 
     private <T> Mono<T> withTransactionStatus(Function<TransactionStatus, T> f) {
-        return Mono.defer(() -> Mono.just(f.apply(this.client.getTransactionStatus())));
+        return Mono.defer(() -> Mono.just(f.apply(this.protocolConnection.getTransactionStatus())));
     }
 
     private Publisher<?> exchange(String sql) {
         ExceptionFactory exceptionFactory = ExceptionFactory.withSql(sql);
-        return SimpleQueryMessageFlow.exchange(this.client, sql)
+        return SimpleQueryMessageFlow.exchange(this.protocolConnection, sql)
             .handle(exceptionFactory::handleErrorResponse)
             .as(Operators::discardOnCancel);
     }
@@ -367,9 +367,9 @@ final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlCo
             }
         }
 
-        void register(Client client) {
+        void register(ProtocolConnection protocolConnection) {
 
-            this.subscription = client.addNotificationListener(new Subscriber<NotificationResponse>() {
+            this.subscription = protocolConnection.addNotificationListener(new Subscriber<NotificationResponse>() {
 
                 @Override
                 public void onSubscribe(Subscription subscription) {

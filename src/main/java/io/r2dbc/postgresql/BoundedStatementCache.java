@@ -17,7 +17,7 @@
 package io.r2dbc.postgresql;
 
 import io.r2dbc.postgresql.client.Binding;
-import io.r2dbc.postgresql.client.Client;
+import io.r2dbc.postgresql.client.ProtocolConnection;
 import io.r2dbc.postgresql.client.ExtendedQueryMessageFlow;
 import io.r2dbc.postgresql.util.Assert;
 import reactor.core.publisher.Mono;
@@ -39,14 +39,14 @@ final class BoundedStatementCache implements StatementCache {
 
     private final Map<CacheKey, String> cache = new LinkedHashMap<>(16, 0.75f, true);
 
-    private final Client client;
+    private final ProtocolConnection protocolConnection;
 
     private final AtomicInteger counter = new AtomicInteger();
 
     private final int limit;
 
-    public BoundedStatementCache(Client client, int limit) {
-        this.client = Assert.requireNonNull(client, "client must not be null");
+    public BoundedStatementCache(ProtocolConnection protocolConnection, int limit) {
+        this.protocolConnection = Assert.requireNonNull(protocolConnection, "client must not be null");
         if (limit <= 0) {
             throw new IllegalArgumentException("statement cache limit must be greater than zero");
         }
@@ -70,7 +70,7 @@ final class BoundedStatementCache implements StatementCache {
             String lastAccessedStatementName = getAndRemoveEldest();
             ExceptionFactory factory = ExceptionFactory.withSql(lastAccessedStatementName);
             return ExtendedQueryMessageFlow
-                .closeStatement(this.client, lastAccessedStatementName)
+                .closeStatement(this.protocolConnection, lastAccessedStatementName)
                 .handle(factory::handleErrorResponse)
                 .then();
         });
@@ -145,7 +145,7 @@ final class BoundedStatementCache implements StatementCache {
         return "LimitedStatementCache{" +
             "cache=" + this.cache +
             ", counter=" + this.counter +
-            ", client=" + this.client +
+            ", client=" + this.protocolConnection +
             ", limit=" + this.limit +
             '}';
     }
@@ -155,7 +155,7 @@ final class BoundedStatementCache implements StatementCache {
 
         ExceptionFactory factory = ExceptionFactory.withSql(name);
         return ExtendedQueryMessageFlow
-            .parse(this.client, name, sql, types)
+            .parse(this.protocolConnection, name, sql, types)
             .handle(factory::handleErrorResponse)
             .then(Mono.just(name))
             .cache();

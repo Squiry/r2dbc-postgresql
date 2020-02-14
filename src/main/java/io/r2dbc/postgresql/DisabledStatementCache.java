@@ -17,7 +17,7 @@
 package io.r2dbc.postgresql;
 
 import io.r2dbc.postgresql.client.Binding;
-import io.r2dbc.postgresql.client.Client;
+import io.r2dbc.postgresql.client.ProtocolConnection;
 import io.r2dbc.postgresql.client.ExtendedQueryMessageFlow;
 import io.r2dbc.postgresql.util.Assert;
 import reactor.core.publisher.Mono;
@@ -26,10 +26,10 @@ class DisabledStatementCache implements StatementCache {
 
     private static final String UNNAMED_STATEMENT_NAME = "";
 
-    private final Client client;
+    private final ProtocolConnection protocolConnection;
 
-    DisabledStatementCache(Client client) {
-        this.client = Assert.requireNonNull(client, "client must not be null");
+    DisabledStatementCache(ProtocolConnection protocolConnection) {
+        this.protocolConnection = Assert.requireNonNull(protocolConnection, "client must not be null");
     }
 
     @Override
@@ -40,7 +40,7 @@ class DisabledStatementCache implements StatementCache {
 
         ExceptionFactory factory = ExceptionFactory.withSql(name);
         return ExtendedQueryMessageFlow
-            .parse(this.client, name, sql, binding.getParameterTypes())
+            .parse(this.protocolConnection, name, sql, binding.getParameterTypes())
             .handle(factory::handleErrorResponse)
             .then(Mono.just(name));
     }
@@ -48,7 +48,7 @@ class DisabledStatementCache implements StatementCache {
     @Override
     public String toString() {
         return "DisabledStatementCache{" +
-            "client=" + this.client +
+            "client=" + this.protocolConnection +
             '}';
     }
 }

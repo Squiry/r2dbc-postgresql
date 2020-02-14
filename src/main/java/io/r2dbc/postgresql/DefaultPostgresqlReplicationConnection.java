@@ -17,7 +17,7 @@
 package io.r2dbc.postgresql;
 
 import io.r2dbc.postgresql.api.PostgresqlConnectionMetadata;
-import io.r2dbc.postgresql.client.Client;
+import io.r2dbc.postgresql.client.ProtocolConnection;
 import io.r2dbc.postgresql.message.backend.BackendMessage;
 import io.r2dbc.postgresql.message.backend.EmptyQueryResponse;
 import io.r2dbc.postgresql.message.backend.ErrorResponse;
@@ -47,11 +47,11 @@ final class DefaultPostgresqlReplicationConnection implements io.r2dbc.postgresq
 
     private final PostgresqlConnection delegate;
 
-    private final Client client;
+    private final ProtocolConnection protocolConnection;
 
     DefaultPostgresqlReplicationConnection(PostgresqlConnection delegate) {
         this.delegate = delegate;
-        this.client = delegate.getClient();
+        this.protocolConnection = delegate.getProtocolConnection();
     }
 
     @Override
@@ -89,11 +89,11 @@ final class DefaultPostgresqlReplicationConnection implements io.r2dbc.postgresq
 
         EmitterProcessor<FrontendMessage> requestProcessor = EmitterProcessor.create();
 
-        return Mono.fromDirect(this.client.exchange(requestProcessor.startWith(new Query(sql)))
+        return Mono.fromDirect(this.protocolConnection.exchange(requestProcessor.startWith(new Query(sql)))
             .handle(exceptionFactory::handleErrorResponse)
             .windowUntil(WINDOW_UNTIL)
             .map(messages -> {
-                return new PostgresReplicationStream(this.client.getByteBufAllocator(), request, requestProcessor, messages);
+                return new PostgresReplicationStream(this.protocolConnection.getByteBufAllocator(), request, requestProcessor, messages);
             }));
     }
 

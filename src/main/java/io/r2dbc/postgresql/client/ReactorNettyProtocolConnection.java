@@ -92,9 +92,9 @@ import static io.r2dbc.postgresql.client.TransactionStatus.IDLE;
  *
  * @see TcpClient
  */
-public final class ReactorNettyClient implements Client {
+public final class ReactorNettyProtocolConnection implements ProtocolConnection {
 
-    private static final Logger logger = Loggers.getLogger(ReactorNettyClient.class);
+    private static final Logger logger = Loggers.getLogger(ReactorNettyProtocolConnection.class);
 
     private static final boolean DEBUG_ENABLED = logger.isDebugEnabled();
 
@@ -133,7 +133,7 @@ public final class ReactorNettyClient implements Client {
      * @param connectionResources the resource configuration to open new connections
      * @throws IllegalArgumentException if {@code connection} is {@code null}
      */
-    private ReactorNettyClient(Connection connection, ConnectionResources connectionResources) {
+    private ReactorNettyProtocolConnection(Connection connection, ConnectionResources connectionResources) {
         Assert.requireNonNull(connection, "Connection must not be null");
         this.connectionResources = Assert.requireNonNull(connectionResources, "connectionProvider must not be null");
 
@@ -319,7 +319,7 @@ public final class ReactorNettyClient implements Client {
      * @param port the port to connect to
      * @throws IllegalArgumentException if {@code host} is {@code null}
      */
-    public static Mono<ReactorNettyClient> connect(String host, int port) {
+    public static Mono<ReactorNettyProtocolConnection> connect(String host, int port) {
         Assert.requireNonNull(host, "host must not be null");
 
         return connect(host, port, null, new SSLConfig(SSLMode.DISABLE, null, null));
@@ -334,7 +334,7 @@ public final class ReactorNettyClient implements Client {
      * @param sslConfig      SSL configuration
      * @throws IllegalArgumentException if {@code host} is {@code null}
      */
-    public static Mono<ReactorNettyClient> connect(String host, int port, @Nullable Duration connectTimeout, SSLConfig sslConfig) {
+    public static Mono<ReactorNettyProtocolConnection> connect(String host, int port, @Nullable Duration connectTimeout, SSLConfig sslConfig) {
         return connect(ConnectionProvider.newConnection(), InetSocketAddress.createUnresolved(host, port), connectTimeout, sslConfig);
     }
 
@@ -347,7 +347,7 @@ public final class ReactorNettyClient implements Client {
      * @param sslConfig          SSL configuration
      * @throws IllegalArgumentException if {@code host} is {@code null}
      */
-    public static Mono<ReactorNettyClient> connect(ConnectionProvider connectionProvider, SocketAddress socketAddress, @Nullable Duration connectTimeout, SSLConfig sslConfig) {
+    public static Mono<ReactorNettyProtocolConnection> connect(ConnectionProvider connectionProvider, SocketAddress socketAddress, @Nullable Duration connectTimeout, SSLConfig sslConfig) {
         Assert.requireNonNull(connectionProvider, "connectionProvider must not be null");
         Assert.requireNonNull(socketAddress, "socketAddress must not be null");
 
@@ -365,13 +365,13 @@ public final class ReactorNettyClient implements Client {
 
             ChannelPipeline pipeline = it.channel().pipeline();
 
-            InternalLogger logger = InternalLoggerFactory.getInstance(ReactorNettyClient.class);
+            InternalLogger logger = InternalLoggerFactory.getInstance(ReactorNettyProtocolConnection.class);
             if (logger.isTraceEnabled()) {
                 pipeline.addFirst(LoggingHandler.class.getSimpleName(),
-                    new LoggingHandler(ReactorNettyClient.class, LogLevel.TRACE));
+                    new LoggingHandler(ReactorNettyProtocolConnection.class, LogLevel.TRACE));
             }
 
-            return registerSslHandler(sslConfig, it).thenReturn(new ReactorNettyClient(it, new ConnectionResources(connectTimeout, connectionProvider, sslConfig)));
+            return registerSslHandler(sslConfig, it).thenReturn(new ReactorNettyProtocolConnection(it, new ConnectionResources(connectTimeout, connectionProvider, sslConfig)));
         });
     }
 
@@ -441,9 +441,9 @@ public final class ReactorNettyClient implements Client {
             int processId = this.getProcessId().orElseThrow(() -> new IllegalStateException("Connection does not yet have a processId"));
             int secretKey = this.getSecretKey().orElseThrow(() -> new IllegalStateException("Connection does not yet have a secretKey"));
 
-            return ReactorNettyClient.connect(this.connectionResources.getConnectionProvider(), this.connection.channel().remoteAddress(), this.connectionResources.getConnectTimeout(),
+            return ReactorNettyProtocolConnection.connect(this.connectionResources.getConnectionProvider(), this.connection.channel().remoteAddress(), this.connectionResources.getConnectTimeout(),
                 this.connectionResources.getSslConfig())
-                .flatMap(client -> CancelRequestMessageFlow.exchange(client, processId, secretKey).then(Mono.defer(client::closeConnection))
+                .flatMap(protocolConnection -> CancelRequestMessageFlow.exchange(protocolConnection, processId, secretKey).then(Mono.defer(protocolConnection::closeConnection))
                     .onErrorResume(PostgresConnectionClosedException.class::isInstance, e -> Mono.empty()));
         });
     }
@@ -902,7 +902,7 @@ public final class ReactorNettyClient implements Client {
             }
 
             handleConnectionError(throwable);
-            ReactorNettyClient.this.requestProcessor.onComplete();
+            ReactorNettyProtocolConnection.this.requestProcessor.onComplete();
             this.terminated = true;
 
             if (isSslException(throwable)) {
@@ -911,13 +911,13 @@ public final class ReactorNettyClient implements Client {
                 logger.error("Connection Error", throwable);
             }
 
-            ReactorNettyClient.this.close().subscribe();
+            ReactorNettyProtocolConnection.this.close().subscribe();
         }
 
         @Override
         public void onComplete() {
             this.terminated = true;
-            ReactorNettyClient.this.handleClose();
+            ReactorNettyProtocolConnection.this.handleClose();
         }
 
         @Override

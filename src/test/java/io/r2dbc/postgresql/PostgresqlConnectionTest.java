@@ -16,8 +16,8 @@
 
 package io.r2dbc.postgresql;
 
-import io.r2dbc.postgresql.client.Client;
-import io.r2dbc.postgresql.client.TestClient;
+import io.r2dbc.postgresql.client.ProtocolConnection;
+import io.r2dbc.postgresql.client.TestProtocolConnection;
 import io.r2dbc.postgresql.client.Version;
 import io.r2dbc.postgresql.codec.MockCodecs;
 import io.r2dbc.postgresql.message.backend.CommandComplete;
@@ -31,7 +31,7 @@ import reactor.test.StepVerifier;
 
 import java.util.Collections;
 
-import static io.r2dbc.postgresql.client.TestClient.NO_OP;
+import static io.r2dbc.postgresql.client.TestProtocolConnection.NO_OP;
 import static io.r2dbc.postgresql.client.TransactionStatus.FAILED;
 import static io.r2dbc.postgresql.client.TransactionStatus.IDLE;
 import static io.r2dbc.postgresql.client.TransactionStatus.OPEN;
@@ -47,11 +47,11 @@ final class PostgresqlConnectionTest {
 
     @Test
     void beginTransaction() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(new Query("BEGIN")).thenRespond(new CommandComplete("BEGIN", null, null))
             .build();
 
-        PostgresqlConnection connection = createConnection(client, MockCodecs.empty(), this.statementCache);
+        PostgresqlConnection connection = createConnection(protocolConnection, MockCodecs.empty(), this.statementCache);
         assertThat(connection.isAutoCommit()).isTrue();
 
         connection.beginTransaction()
@@ -61,11 +61,11 @@ final class PostgresqlConnectionTest {
 
     @Test
     void beginTransactionErrorResponse() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(new Query("BEGIN")).thenRespond(new ErrorResponse(Collections.emptyList()))
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .beginTransaction()
             .as(StepVerifier::create)
             .verifyErrorMatches(R2dbcNonTransientResourceException.class::isInstance);
@@ -73,11 +73,11 @@ final class PostgresqlConnectionTest {
 
     @Test
     void beginTransactionNonIdle() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(OPEN)
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .beginTransaction()
             .as(StepVerifier::create)
             .verifyComplete();
@@ -85,12 +85,12 @@ final class PostgresqlConnectionTest {
 
     @Test
     void close() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(Terminate.INSTANCE).thenRespond()
             .expectClose()
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .close()
             .as(StepVerifier::create)
             .verifyComplete();
@@ -98,12 +98,12 @@ final class PostgresqlConnectionTest {
 
     @Test
     void commitTransaction() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(OPEN)
             .expectRequest(new Query("COMMIT")).thenRespond(new CommandComplete("COMMIT", null, null))
             .build();
 
-        PostgresqlConnection connection = createConnection(client, MockCodecs.empty(), this.statementCache);
+        PostgresqlConnection connection = createConnection(protocolConnection, MockCodecs.empty(), this.statementCache);
 
         assertThat(connection.isAutoCommit()).isFalse();
         connection.commitTransaction()
@@ -113,12 +113,12 @@ final class PostgresqlConnectionTest {
 
     @Test
     void commitTransactionErrorResponse() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(OPEN)
             .expectRequest(new Query("COMMIT")).thenRespond(new ErrorResponse(Collections.emptyList()))
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .commitTransaction()
             .as(StepVerifier::create)
             .verifyErrorMatches(R2dbcNonTransientResourceException.class::isInstance);
@@ -126,11 +126,11 @@ final class PostgresqlConnectionTest {
 
     @Test
     void commitTransactionNonOpen() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(IDLE)
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .commitTransaction()
             .as(StepVerifier::create)
             .verifyComplete();
@@ -167,12 +167,12 @@ final class PostgresqlConnectionTest {
 
     @Test
     void createSavepoint() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(OPEN)
             .expectRequest(new Query("SAVEPOINT test-name")).thenRespond(new CommandComplete("SAVEPOINT", null, null))
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .createSavepoint("test-name")
             .as(StepVerifier::create)
             .verifyComplete();
@@ -180,12 +180,12 @@ final class PostgresqlConnectionTest {
 
     @Test
     void createSavepointErrorResponse() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(OPEN)
             .expectRequest(new Query("SAVEPOINT test-name")).thenRespond(new ErrorResponse(Collections.emptyList()))
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .createSavepoint("test-name")
             .as(StepVerifier::create)
             .verifyErrorMatches(R2dbcNonTransientResourceException.class::isInstance);
@@ -199,11 +199,11 @@ final class PostgresqlConnectionTest {
 
     @Test
     void createSavepointNonOpen() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(IDLE)
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .createSavepoint("test-name")
             .as(StepVerifier::create)
             .verifyComplete();
@@ -228,12 +228,12 @@ final class PostgresqlConnectionTest {
 
     @Test
     void releaseSavepoint() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(OPEN)
             .expectRequest(new Query("RELEASE SAVEPOINT test-name")).thenRespond(new CommandComplete("RELEASE", null, null))
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .releaseSavepoint("test-name")
             .as(StepVerifier::create)
             .verifyComplete();
@@ -241,12 +241,12 @@ final class PostgresqlConnectionTest {
 
     @Test
     void releaseSavepointErrorResponse() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(OPEN)
             .expectRequest(new Query("RELEASE SAVEPOINT test-name")).thenRespond(new ErrorResponse(Collections.emptyList()))
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .releaseSavepoint("test-name")
             .as(StepVerifier::create)
             .verifyErrorMatches(R2dbcNonTransientResourceException.class::isInstance);
@@ -260,11 +260,11 @@ final class PostgresqlConnectionTest {
 
     @Test
     void releaseSavepointNonOpen() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(IDLE)
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .releaseSavepoint("test-name")
             .as(StepVerifier::create)
             .verifyComplete();
@@ -272,12 +272,12 @@ final class PostgresqlConnectionTest {
 
     @Test
     void rollbackTransaction() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(OPEN)
             .expectRequest(new Query("ROLLBACK")).thenRespond(new CommandComplete("ROLLBACK", null, null))
             .build();
 
-        PostgresqlConnection connection = createConnection(client, MockCodecs.empty(), this.statementCache);
+        PostgresqlConnection connection = createConnection(protocolConnection, MockCodecs.empty(), this.statementCache);
 
         connection.rollbackTransaction()
             .as(StepVerifier::create)
@@ -286,12 +286,12 @@ final class PostgresqlConnectionTest {
 
     @Test
     void rollbackTransactionErrorResponse() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(OPEN)
             .expectRequest(new Query("ROLLBACK")).thenRespond(new ErrorResponse(Collections.emptyList()))
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .rollbackTransaction()
             .as(StepVerifier::create)
             .verifyErrorMatches(R2dbcNonTransientResourceException.class::isInstance);
@@ -299,11 +299,11 @@ final class PostgresqlConnectionTest {
 
     @Test
     void rollbackTransactionIdle() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(IDLE)
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .rollbackTransaction()
             .as(StepVerifier::create)
             .verifyComplete();
@@ -311,12 +311,12 @@ final class PostgresqlConnectionTest {
 
     @Test
     void rollbackTransactionFailed() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(FAILED)
             .expectRequest(new Query("ROLLBACK")).thenRespond(new CommandComplete("ROLLBACK", null, null))
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .rollbackTransaction()
             .as(StepVerifier::create)
             .verifyComplete();
@@ -324,12 +324,12 @@ final class PostgresqlConnectionTest {
 
     @Test
     void rollbackTransactionToSavepoint() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(OPEN)
             .expectRequest(new Query("ROLLBACK TO SAVEPOINT test-name")).thenRespond(new CommandComplete("ROLLBACK", null, null))
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .rollbackTransactionToSavepoint("test-name")
             .as(StepVerifier::create)
             .verifyComplete();
@@ -337,12 +337,12 @@ final class PostgresqlConnectionTest {
 
     @Test
     void rollbackTransactionToSavepointErrorResponse() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(OPEN)
             .expectRequest(new Query("ROLLBACK TO SAVEPOINT test-name")).thenRespond(new ErrorResponse(Collections.emptyList()))
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .rollbackTransactionToSavepoint("test-name")
             .as(StepVerifier::create)
             .verifyErrorMatches(R2dbcNonTransientResourceException.class::isInstance);
@@ -356,11 +356,11 @@ final class PostgresqlConnectionTest {
 
     @Test
     void rollbackTransactionToSavepointNonOpen() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(IDLE)
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .rollbackTransactionToSavepoint("test-name")
             .as(StepVerifier::create)
             .verifyComplete();
@@ -368,9 +368,9 @@ final class PostgresqlConnectionTest {
 
     @Test
     void getMetadata() {
-        Client client = TestClient.builder().withVersion(new Version("9.4")).build();
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder().withVersion(new Version("9.4")).build();
 
-        PostgresqlConnection connection = createConnection(client, MockCodecs.empty(), this.statementCache);
+        PostgresqlConnection connection = createConnection(protocolConnection, MockCodecs.empty(), this.statementCache);
 
         PostgresqlConnectionMetadata metadata = connection.getMetadata();
 
@@ -380,33 +380,33 @@ final class PostgresqlConnectionTest {
 
     @Test
     void isAutoCommitFalseOnOpenTransaction() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(OPEN)
             .build();
 
-        PostgresqlConnection connection = createConnection(client, MockCodecs.empty(), this.statementCache);
+        PostgresqlConnection connection = createConnection(protocolConnection, MockCodecs.empty(), this.statementCache);
 
         assertThat(connection.isAutoCommit()).isFalse();
     }
 
     @Test
     void isAutoCommitTrueByDefault() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(IDLE)
             .build();
 
-        PostgresqlConnection connection = createConnection(client, MockCodecs.empty(), this.statementCache);
+        PostgresqlConnection connection = createConnection(protocolConnection, MockCodecs.empty(), this.statementCache);
 
         assertThat(connection.isAutoCommit()).isTrue();
     }
 
     @Test
     void setAutoCommitFalseBeginsTransaction() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(new Query("BEGIN")).thenRespond(new CommandComplete("BEGIN", null, null))
             .build();
 
-        PostgresqlConnection connection = createConnection(client, MockCodecs.empty(), this.statementCache);
+        PostgresqlConnection connection = createConnection(protocolConnection, MockCodecs.empty(), this.statementCache);
 
         connection.setAutoCommit(false)
             .as(StepVerifier::create)
@@ -415,10 +415,10 @@ final class PostgresqlConnectionTest {
 
     @Test
     void setAutoCommitTrueIsNoOpBeginsTransaction() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .build();
 
-        PostgresqlConnection connection = createConnection(client, MockCodecs.empty(), this.statementCache);
+        PostgresqlConnection connection = createConnection(protocolConnection, MockCodecs.empty(), this.statementCache);
 
         connection.setAutoCommit(true)
             .as(StepVerifier::create)
@@ -429,12 +429,12 @@ final class PostgresqlConnectionTest {
 
     @Test
     void setTransactionIsolationLevel() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(OPEN)
             .expectRequest(new Query("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")).thenRespond(new CommandComplete("SET", null, null))
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .setTransactionIsolationLevel(READ_COMMITTED)
             .as(StepVerifier::create)
             .verifyComplete();
@@ -442,12 +442,12 @@ final class PostgresqlConnectionTest {
 
     @Test
     void setTransactionIsolationLevelErrorResponse() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(IDLE)
             .expectRequest(new Query("SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED")).thenRespond(new ErrorResponse(Collections.emptyList()))
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .setTransactionIsolationLevel(READ_COMMITTED)
             .as(StepVerifier::create)
             .verifyErrorMatches(R2dbcNonTransientResourceException.class::isInstance);
@@ -461,18 +461,18 @@ final class PostgresqlConnectionTest {
 
     @Test
     void setTransactionIsolationLevelNonOpen() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .transactionStatus(IDLE)
             .expectRequest(new Query("SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED")).thenRespond(new CommandComplete("SET", null, null))
             .build();
 
-        createConnection(client, MockCodecs.empty(), this.statementCache)
+        createConnection(protocolConnection, MockCodecs.empty(), this.statementCache)
             .setTransactionIsolationLevel(READ_COMMITTED)
             .as(StepVerifier::create)
             .verifyComplete();
     }
 
-    private PostgresqlConnection createConnection(Client client, MockCodecs codecs, StatementCache cache) {
-        return new PostgresqlConnection(client, codecs, () -> "", cache, IsolationLevel.READ_COMMITTED, false);
+    private PostgresqlConnection createConnection(ProtocolConnection protocolConnection, MockCodecs codecs, StatementCache cache) {
+        return new PostgresqlConnection(protocolConnection, codecs, () -> "", cache, IsolationLevel.READ_COMMITTED, false);
     }
 }

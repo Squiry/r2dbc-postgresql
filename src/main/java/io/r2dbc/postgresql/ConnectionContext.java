@@ -17,17 +17,17 @@
 package io.r2dbc.postgresql;
 
 import io.r2dbc.postgresql.api.PostgresqlConnection;
-import io.r2dbc.postgresql.client.Client;
+import io.r2dbc.postgresql.client.ProtocolConnection;
 import io.r2dbc.postgresql.client.PortalNameSupplier;
 import io.r2dbc.postgresql.codec.Codecs;
 import io.r2dbc.postgresql.util.Assert;
 
 /**
- * Value object capturing contextual connection resources such as {@link Client}, {@link Codecs} and the {@link PostgresqlConnection connection facade}.
+ * Value object capturing contextual connection resources such as {@link ProtocolConnection}, {@link Codecs} and the {@link PostgresqlConnection connection facade}.
  */
 final class ConnectionContext {
 
-    private final Client client;
+    private final ProtocolConnection protocolConnection;
 
     private final Codecs codecs;
 
@@ -39,8 +39,8 @@ final class ConnectionContext {
 
     private final PortalNameSupplier portalNameSupplier;
 
-    ConnectionContext(Client client, Codecs codecs, PostgresqlConnection connection, boolean forceBinary, PortalNameSupplier portalNameSupplier, StatementCache statementCache) {
-        this.client = client;
+    ConnectionContext(ProtocolConnection protocolConnection, Codecs codecs, PostgresqlConnection connection, boolean forceBinary, PortalNameSupplier portalNameSupplier, StatementCache statementCache) {
+        this.protocolConnection = protocolConnection;
         this.codecs = codecs;
         this.connection = connection;
         this.forceBinary = forceBinary;
@@ -48,8 +48,8 @@ final class ConnectionContext {
         this.statementCache = Assert.requireNonNull(statementCache, "statementCache must not be null");
     }
 
-    public Client getClient() {
-        return this.client;
+    public ProtocolConnection getProtocolConnection() {
+        return this.protocolConnection;
     }
 
     public Codecs getCodecs() {
@@ -75,7 +75,7 @@ final class ConnectionContext {
     @Override
     public String toString() {
         return "ConnectionContext{" +
-            "client=" + this.client +
+            "client=" + this.protocolConnection +
             ", codecs=" + this.codecs +
             ", connection=" + this.connection +
             ", forceBinary=" + this.forceBinary +

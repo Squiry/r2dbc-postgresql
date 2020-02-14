@@ -71,7 +71,7 @@ public final class ExtendedQueryMessageFlow {
      * Execute the execute portion of the <a href="https://www.postgresql.org/docs/current/static/protocol-flow.html#PROTOCOL-FLOW-EXT-QUERY">Extended query</a> message flow.
      *
      * @param binding            the {@link Binding} to bind
-     * @param client             the {@link Client} to exchange messages with
+     * @param protocolConnection             the {@link ProtocolConnection} to exchange messages with
      * @param portalNameSupplier supplier unique portal names for each binding
      * @param statementName      the name of the statementName to execute
      * @param query              the query to execute
@@ -81,10 +81,10 @@ public final class ExtendedQueryMessageFlow {
      * @return the messages received in response to the exchange
      * @throws IllegalArgumentException if {@code bindings}, {@code client}, {@code portalNameSupplier}, or {@code statementName} is {@code null}
      */
-    public static Flux<BackendMessage> execute(Binding binding, Client client, PortalNameSupplier portalNameSupplier, String statementName, String query, boolean forceBinary,
+    public static Flux<BackendMessage> execute(Binding binding, ProtocolConnection protocolConnection, PortalNameSupplier portalNameSupplier, String statementName, String query, boolean forceBinary,
                                                int fetchSize) {
         Assert.requireNonNull(binding, "binding must not be null");
-        Assert.requireNonNull(client, "client must not be null");
+        Assert.requireNonNull(protocolConnection, "client must not be null");
         Assert.requireNonNull(portalNameSupplier, "portalNameSupplier must not be null");
         Assert.requireNonNull(statementName, "statementName must not be null");
 
@@ -95,10 +95,10 @@ public final class ExtendedQueryMessageFlow {
             Flux<FrontendMessage> bindFlow = toBindFlow(binding, portal, statementName, query, forceBinary);
 
             if (fetchSize == NO_LIMIT) {
-                return fetchAll(bindFlow, client, portal);
+                return fetchAll(bindFlow, protocolConnection, portal);
             }
 
-            return fetchCursored(bindFlow, client, portal, fetchSize);
+            return fetchCursored(bindFlow, protocolConnection, portal, fetchSize);
         }).doOnDiscard(ReferenceCounted.class, ReferenceCountUtil::release);
     }
 
@@ -106,12 +106,12 @@ public final class ExtendedQueryMessageFlow {
      * Execute the query and indicate to fetch all rows with the {@link Execute} message.
      *
      * @param bindFlow the initial bind flow
-     * @param client   client to use
+     * @param protocolConnection   client to use
      * @param portal   the portal
      * @return the resulting message stream
      */
-    private static Flux<BackendMessage> fetchAll(Flux<FrontendMessage> bindFlow, Client client, String portal) {
-        return client.exchange(bindFlow.concatWithValues(new Execute(portal, NO_LIMIT), new Close(portal, PORTAL), Sync.INSTANCE))
+    private static Flux<BackendMessage> fetchAll(Flux<FrontendMessage> bindFlow, ProtocolConnection protocolConnection, String portal) {
+        return protocolConnection.exchange(bindFlow.concatWithValues(new Execute(portal, NO_LIMIT), new Close(portal, PORTAL), Sync.INSTANCE))
             .as(Operators::discardOnCancel);
     }
 
@@ -119,18 +119,18 @@ public final class ExtendedQueryMessageFlow {
      * Execute the query and indicate to fetch rows in chunks with the {@link Execute} message.
      *
      * @param bindFlow  the initial bind flow
-     * @param client    client to use
+     * @param protocolConnection    client to use
      * @param portal    the portal
      * @param fetchSize fetch size per roundtrip
      * @return the resulting message stream
      */
-    private static Flux<BackendMessage> fetchCursored(Flux<FrontendMessage> bindFlow, Client client, String portal, int fetchSize) {
+    private static Flux<BackendMessage> fetchCursored(Flux<FrontendMessage> bindFlow, ProtocolConnection protocolConnection, String portal, int fetchSize) {
 
         DirectProcessor<FrontendMessage> requestsProcessor = DirectProcessor.create();
         FluxSink<FrontendMessage> requestsSink = requestsProcessor.sink();
         AtomicBoolean isCanceled = new AtomicBoolean(false);
 
-        return client.exchange(bindFlow.concatWithValues(new Execute(portal, fetchSize), Flush.INSTANCE).concatWith(requestsProcessor))
+        return protocolConnection.exchange(bindFlow.concatWithValues(new Execute(portal, fetchSize), Flush.INSTANCE).concatWith(requestsProcessor))
             .handle((BackendMessage message, SynchronousSink<BackendMessage> sink) -> {
                 if (message instanceof CommandComplete) {
                     requestsSink.next(new Close(portal, PORTAL));
@@ -160,15 +160,15 @@ public final class ExtendedQueryMessageFlow {
     /**
      * Execute the parse portion of the <a href="https://www.postgresql.org/docs/current/static/protocol-flow.html#PROTOCOL-FLOW-EXT-QUERY">Extended query</a> message flow.
      *
-     * @param client the {@link Client} to exchange messages with
+     * @param protocolConnection the {@link ProtocolConnection} to exchange messages with
      * @param name   the name of the statement to prepare
      * @param query  the query to execute
      * @param types  the parameter types for the query
      * @return the messages received in response to this exchange
      * @throws IllegalArgumentException if {@code client}, {@code name}, {@code query}, or {@code types} is {@code null}
      */
-    public static Flux<BackendMessage> parse(Client client, String name, String query, int[] types) {
-        Assert.requireNonNull(client, "client must not be null");
+    public static Flux<BackendMessage> parse(ProtocolConnection protocolConnection, String name, String query, int[] types) {
+        Assert.requireNonNull(protocolConnection, "client must not be null");
         Assert.requireNonNull(name, "name must not be null");
         Assert.requireNonNull(query, "query must not be null");
         Assert.requireNonNull(types, "types must not be null");
@@ -177,14 +177,14 @@ public final class ExtendedQueryMessageFlow {
          ParseComplete will be received if parse was successful
          ReadyForQuery will be received as a response to Sync, which was send in case of error in parsing
          */
-        return client.exchange(PARSE_TAKE_UNTIL, Flux.just(new Parse(name, types, query), Flush.INSTANCE))
+        return protocolConnection.exchange(PARSE_TAKE_UNTIL, Flux.just(new Parse(name, types, query), Flush.INSTANCE))
             .doOnNext(message -> {
                 if (message instanceof ErrorResponse) {
                     /*
                     When an error is detected while processing any extended-query message, the backend issues ErrorResponse, then reads and discards messages until a Sync is reached.
                     So we have to provide Sync message to continue.
                     */
-                    client.send(Sync.INSTANCE);
+                    protocolConnection.send(Sync.INSTANCE);
                 }
             });
     }
@@ -192,16 +192,16 @@ public final class ExtendedQueryMessageFlow {
     /**
      * Execute the close portion of the <a href="https://www.postgresql.org/docs/current/static/protocol-flow.html#PROTOCOL-FLOW-EXT-QUERY">Extended query</a> message flow.
      *
-     * @param client the {@link Client} to exchange messages with
+     * @param protocolConnection the {@link ProtocolConnection} to exchange messages with
      * @param name   the name of the statement to close
      * @return the messages received in response to this exchange
      * @throws IllegalArgumentException if {@code client}, {@code name}, {@code query}, or {@code types} is {@code null}
      */
-    public static Flux<BackendMessage> closeStatement(Client client, String name) {
-        Assert.requireNonNull(client, "client must not be null");
+    public static Flux<BackendMessage> closeStatement(ProtocolConnection protocolConnection, String name) {
+        Assert.requireNonNull(protocolConnection, "client must not be null");
         Assert.requireNonNull(name, "name must not be null");
 
-        return client.exchange(Flux.just(new Close(name, ExecutionType.STATEMENT), Sync.INSTANCE))
+        return protocolConnection.exchange(Flux.just(new Close(name, ExecutionType.STATEMENT), Sync.INSTANCE))
             .takeUntil(CloseComplete.class::isInstance);
     }
 

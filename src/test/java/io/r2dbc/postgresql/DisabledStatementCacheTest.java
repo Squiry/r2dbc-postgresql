@@ -17,9 +17,9 @@
 package io.r2dbc.postgresql;
 
 import io.r2dbc.postgresql.client.Binding;
-import io.r2dbc.postgresql.client.Client;
+import io.r2dbc.postgresql.client.ProtocolConnection;
 import io.r2dbc.postgresql.client.Parameter;
-import io.r2dbc.postgresql.client.TestClient;
+import io.r2dbc.postgresql.client.TestProtocolConnection;
 import io.r2dbc.postgresql.message.backend.ErrorResponse;
 import io.r2dbc.postgresql.message.backend.ParseComplete;
 import io.r2dbc.postgresql.message.frontend.Flush;
@@ -31,7 +31,7 @@ import reactor.test.StepVerifier;
 
 import java.util.Collections;
 
-import static io.r2dbc.postgresql.client.TestClient.NO_OP;
+import static io.r2dbc.postgresql.client.TestProtocolConnection.NO_OP;
 import static io.r2dbc.postgresql.message.Format.FORMAT_BINARY;
 import static io.r2dbc.postgresql.util.TestByteBufAllocator.TEST;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -47,7 +47,7 @@ class DisabledStatementCacheTest {
     @Test
     void getName() {
         // @formatter:off
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(new Parse("", new int[]{100}, "test-query"),  Flush.INSTANCE)
             .thenRespond(ParseComplete.INSTANCE)
             .expectRequest(new Parse("", new int[]{100}, "test-query"),  Flush.INSTANCE)
@@ -59,7 +59,7 @@ class DisabledStatementCacheTest {
             .build();
         // @formatter:on
 
-        DisabledStatementCache statementCache = new DisabledStatementCache(client);
+        DisabledStatementCache statementCache = new DisabledStatementCache(protocolConnection);
 
         statementCache.getName(new Binding(1).add(0, new Parameter(FORMAT_BINARY, 100, Flux.just(TEST.buffer(4).writeInt(100)))), "test-query")
             .as(StepVerifier::create)
@@ -85,13 +85,13 @@ class DisabledStatementCacheTest {
     @Test
     void getNameErrorResponse() {
         // @formatter:off
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(new Parse("", new int[]{100}, "test-query"), Flush.INSTANCE)
             .thenRespond(new ErrorResponse(Collections.emptyList()))
             .build();
         // @formatter:on
 
-        DisabledStatementCache statementCache = new DisabledStatementCache(client);
+        DisabledStatementCache statementCache = new DisabledStatementCache(protocolConnection);
 
         statementCache.getName(new Binding(1).add(0, new Parameter(FORMAT_BINARY, 100, Flux.just(TEST.buffer(4).writeInt(200)))), "test-query")
             .as(StepVerifier::create)

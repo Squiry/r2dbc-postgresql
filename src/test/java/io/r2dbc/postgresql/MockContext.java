@@ -17,7 +17,7 @@
 package io.r2dbc.postgresql;
 
 import io.r2dbc.postgresql.api.PostgresqlConnection;
-import io.r2dbc.postgresql.client.Client;
+import io.r2dbc.postgresql.client.ProtocolConnection;
 import io.r2dbc.postgresql.client.PortalNameSupplier;
 import io.r2dbc.postgresql.codec.Codecs;
 import io.r2dbc.postgresql.codec.MockCodecs;
@@ -39,7 +39,7 @@ final class MockContext {
 
         private Codecs codecs = MockCodecs.empty();
 
-        private Client client;
+        private ProtocolConnection protocolConnection;
 
         private PostgresqlConnection connection;
 
@@ -53,7 +53,7 @@ final class MockContext {
         }
 
         public ConnectionContext build() {
-            return new ConnectionContext(this.client, this.codecs, this.connection, forceBinary, portalNameSupplier, statementCache);
+            return new ConnectionContext(this.protocolConnection, this.codecs, this.connection, forceBinary, portalNameSupplier, statementCache);
         }
 
         public Builder codecs(Codecs codecs) {
@@ -61,8 +61,8 @@ final class MockContext {
             return this;
         }
 
-        public Builder client(Client client) {
-            this.client = client;
+        public Builder client(ProtocolConnection protocolConnection) {
+            this.protocolConnection = protocolConnection;
             return this;
         }
 

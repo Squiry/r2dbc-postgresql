@@ -75,18 +75,18 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import static org.assertj.core.api.Assertions.fail;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
-final class ReactorNettyClientIntegrationTests {
+final class ReactorNettyProtocolConnectionIntegrationTests {
 
     @RegisterExtension
     static final PostgresqlServerExtension SERVER = new PostgresqlServerExtension();
 
-    static final Field CONNECTION = ReflectionUtils.findField(ReactorNettyClient.class, "connection");
+    static final Field CONNECTION = ReflectionUtils.findField(ReactorNettyProtocolConnection.class, "connection");
 
     static {
         ReflectionUtils.makeAccessible(CONNECTION);
     }
 
-    private final ReactorNettyClient client = ReactorNettyClient.connect(SERVER.getHost(), SERVER.getPort())
+    private final ReactorNettyProtocolConnection client = ReactorNettyProtocolConnection.connect(SERVER.getHost(), SERVER.getPort())
         .delayUntil(client -> StartupMessageFlow
             .exchange(this.getClass().getName(), m -> new PasswordAuthenticationHandler(SERVER.getPassword(), SERVER.getUsername()), client, SERVER.getDatabase(), SERVER.getUsername(),
                 Collections.emptyMap()))
@@ -131,7 +131,7 @@ final class ReactorNettyClientIntegrationTests {
             future.get(5, TimeUnit.SECONDS);
             fail("Expected PostgresConnectionClosedException");
         } catch (ExecutionException e) {
-            assertThat(e).hasCauseInstanceOf(ReactorNettyClient.PostgresConnectionClosedException.class).hasMessageContaining("Cannot exchange messages");
+            assertThat(e).hasCauseInstanceOf(ReactorNettyProtocolConnection.PostgresConnectionClosedException.class).hasMessageContaining("Cannot exchange messages");
         }
     }
 
@@ -154,7 +154,7 @@ final class ReactorNettyClientIntegrationTests {
             future.get(5, TimeUnit.SECONDS);
             fail("Expected PostgresConnectionClosedException");
         } catch (ExecutionException e) {
-            assertThat(e).hasCauseInstanceOf(ReactorNettyClient.PostgresConnectionClosedException.class);
+            assertThat(e).hasCauseInstanceOf(ReactorNettyProtocolConnection.PostgresConnectionClosedException.class);
         }
     }
 
@@ -167,7 +167,7 @@ final class ReactorNettyClientIntegrationTests {
 
     @Test
     void constructorNoHost() {
-        assertThatIllegalArgumentException().isThrownBy(() -> ReactorNettyClient.connect(null, SERVER.getPort()))
+        assertThatIllegalArgumentException().isThrownBy(() -> ReactorNettyProtocolConnection.connect(null, SERVER.getPort()))
             .withMessage("host must not be null");
     }
 
@@ -340,7 +340,7 @@ final class ReactorNettyClientIntegrationTests {
             .username("test")
             .password("test")
             .database(SERVER.getDatabase())
-            .applicationName(ReactorNettyClientIntegrationTests.class.getName())
+            .applicationName(ReactorNettyProtocolConnectionIntegrationTests.class.getName())
             .connectTimeout(Duration.ofMillis(200))
             .build());
 
@@ -362,7 +362,7 @@ final class ReactorNettyClientIntegrationTests {
             .socket(socket)
             .username("postgres")
             .database(SERVER.getDatabase())
-            .applicationName(ReactorNettyClientIntegrationTests.class.getName())
+            .applicationName(ReactorNettyProtocolConnectionIntegrationTests.class.getName())
             .build());
 
         postgresqlConnectionFactory.create()
@@ -419,7 +419,7 @@ final class ReactorNettyClientIntegrationTests {
                 .username(username)
                 .password(password)
                 .database(SERVER.getDatabase())
-                .applicationName(ReactorNettyClientIntegrationTests.class.getName())
+                .applicationName(ReactorNettyProtocolConnectionIntegrationTests.class.getName())
                 .build());
         }
     }

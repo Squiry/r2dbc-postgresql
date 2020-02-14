@@ -17,20 +17,20 @@
 package io.r2dbc.postgresql;
 
 import io.r2dbc.postgresql.client.Binding;
-import io.r2dbc.postgresql.client.Client;
+import io.r2dbc.postgresql.client.ProtocolConnection;
 import reactor.core.publisher.Mono;
 
 interface StatementCache {
 
     Mono<String> getName(Binding binding, String sql);
 
-    static StatementCache fromPreparedStatementCacheQueries(Client client, int preparedStatementCacheQueries) {
+    static StatementCache fromPreparedStatementCacheQueries(ProtocolConnection protocolConnection, int preparedStatementCacheQueries) {
         if (preparedStatementCacheQueries < 0) {
-            return new IndefiniteStatementCache(client);
+            return new IndefiniteStatementCache(protocolConnection);
         }
         if (preparedStatementCacheQueries == 0) {
-            return new DisabledStatementCache(client);
+            return new DisabledStatementCache(protocolConnection);
         }
-        return new BoundedStatementCache(client, preparedStatementCacheQueries);
+        return new BoundedStatementCache(protocolConnection, preparedStatementCacheQueries);
     }
 }

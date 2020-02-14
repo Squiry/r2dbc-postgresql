@@ -40,9 +40,9 @@ import java.util.function.Predicate;
 
 import static io.r2dbc.postgresql.client.TransactionStatus.IDLE;
 
-public final class TestClient implements Client {
+public final class TestProtocolConnection implements ProtocolConnection {
 
-    public static final TestClient NO_OP = new TestClient(false, true, null, null, Flux.empty(), IDLE, new Version("9.4"));
+    public static final TestProtocolConnection NO_OP = new TestProtocolConnection(false, true, null, null, Flux.empty(), IDLE, new Version("9.4"));
 
     private final boolean expectClose;
 
@@ -64,7 +64,7 @@ public final class TestClient implements Client {
 
     private final Version version;
 
-    private TestClient(boolean expectClose, boolean connected, @Nullable Integer processId, @Nullable Integer secretKey, Flux<Window> windows, TransactionStatus transactionStatus, Version version) {
+    private TestProtocolConnection(boolean expectClose, boolean connected, @Nullable Integer processId, @Nullable Integer secretKey, Flux<Window> windows, TransactionStatus transactionStatus, Version version) {
         this.expectClose = expectClose;
         this.connected = connected;
         this.processId = processId;
@@ -197,8 +197,8 @@ public final class TestClient implements Client {
         private Builder() {
         }
 
-        public TestClient build() {
-            return new TestClient(this.expectClose, this.connected, this.processId, this.secretKey, Flux.fromIterable(this.windows).map(Window.Builder::build), this.transactionStatus, this.version);
+        public TestProtocolConnection build() {
+            return new TestProtocolConnection(this.expectClose, this.connected, this.processId, this.secretKey, Flux.fromIterable(this.windows).map(Window.Builder::build), this.transactionStatus, this.version);
         }
 
         public Builder expectClose() {

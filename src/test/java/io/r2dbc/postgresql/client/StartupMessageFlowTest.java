@@ -25,7 +25,7 @@ import io.r2dbc.postgresql.message.frontend.StartupMessage;
 import org.junit.jupiter.api.Test;
 import reactor.test.StepVerifier;
 
-import static io.r2dbc.postgresql.client.TestClient.NO_OP;
+import static io.r2dbc.postgresql.client.TestProtocolConnection.NO_OP;
 import static io.r2dbc.postgresql.util.TestByteBufAllocator.TEST;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.mockito.Mockito.RETURNS_SMART_NULLS;
@@ -39,7 +39,7 @@ final class StartupMessageFlowTest {
     @Test
     void exchangeAuthenticationMessage() {
         // @formatter:off
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .window()
                 .expectRequest(new StartupMessage("test-application-name", "test-database", "test-username", null)).thenRespond(new AuthenticationMD5Password(TEST.buffer(4).writeInt(100)))
                 .expectRequest(new PasswordMessage("test-password")).thenRespond(AuthenticationOk.INSTANCE)
@@ -50,45 +50,45 @@ final class StartupMessageFlowTest {
         when(this.authenticationHandler.handle(new AuthenticationMD5Password(TEST.buffer(4).writeInt(100)))).thenReturn(new PasswordMessage("test-password"));
 
         StartupMessageFlow
-            .exchange("test-application-name", m -> this.authenticationHandler, client, "test-database", "test-username", null)
+            .exchange("test-application-name", m -> this.authenticationHandler, protocolConnection, "test-database", "test-username", null)
             .as(StepVerifier::create)
             .verifyComplete();
     }
 
     @Test
     void exchangeAuthenticationMessageFail() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(new StartupMessage("test-application-name", "test-database", "test-username", null)).thenRespond(new AuthenticationMD5Password(TEST.buffer(4).writeInt(100)))
             .build();
 
         when(this.authenticationHandler.handle(new AuthenticationMD5Password(TEST.buffer(4).writeInt(100)))).thenThrow(new IllegalArgumentException());
 
         StartupMessageFlow
-            .exchange("test-application-name", m -> this.authenticationHandler, client, "test-database", "test-username", null)
+            .exchange("test-application-name", m -> this.authenticationHandler, protocolConnection, "test-database", "test-username", null)
             .as(StepVerifier::create)
             .verifyError(IllegalArgumentException.class);
     }
 
     @Test
     void exchangeAuthenticationOk() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(new StartupMessage("test-application-name", "test-database", "test-username", null)).thenRespond(AuthenticationOk.INSTANCE)
             .build();
 
         StartupMessageFlow
-            .exchange("test-application-name", m -> this.authenticationHandler, client, "test-database", "test-username", null)
+            .exchange("test-application-name", m -> this.authenticationHandler, protocolConnection, "test-database", "test-username", null)
             .as(StepVerifier::create)
             .verifyComplete();
     }
 
     @Test
     void exchangeAuthenticationOther() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(new StartupMessage("test-application-name", "test-database", "test-username", null)).thenRespond(AuthenticationOk.INSTANCE, new BackendKeyData(100, 200))
             .build();
 
         StartupMessageFlow
-            .exchange("test-application-name", m -> this.authenticationHandler, client, "test-database", "test-username", null)
+            .exchange("test-application-name", m -> this.authenticationHandler, protocolConnection, "test-database", "test-username", null)
             .as(StepVerifier::create)
             .expectNext(new BackendKeyData(100, 200))
             .verifyComplete();

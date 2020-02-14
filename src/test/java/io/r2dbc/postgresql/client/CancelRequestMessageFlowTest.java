@@ -26,12 +26,12 @@ final class CancelRequestMessageFlowTest {
 
     @Test
     void exchange() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(new CancelRequest(100, 200)).thenRespond()
             .build();
 
         CancelRequestMessageFlow
-            .exchange(client, 100, 200)
+            .exchange(protocolConnection, 100, 200)
             .as(StepVerifier::create)
             .verifyComplete();
     }

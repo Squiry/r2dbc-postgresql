@@ -31,14 +31,14 @@ public final class CancelRequestMessageFlow {
     /**
      * Execute the <a href="https://www.postgresql.org/docs/current/protocol-flow.html#id-1.10.5.7.9">Cancel Request</a> message flow.
      *
-     * @param client the {@link Client} to exchange messages with
+     * @param protocolConnection the {@link ProtocolConnection} to exchange messages with
      * @return the messages received after authentication is complete, in response to this exchange
      * @throws IllegalArgumentException if {@code Client} is {@code null}
      */
-    public static Mono<Void> exchange(Client client, int processId, int secretKey) {
-        Assert.requireNonNull(client, "client must not be null");
+    public static Mono<Void> exchange(ProtocolConnection protocolConnection, int processId, int secretKey) {
+        Assert.requireNonNull(protocolConnection, "client must not be null");
 
-        return client.exchange(Mono.just(new CancelRequest(processId, secretKey))).then();
+        return protocolConnection.exchange(Mono.just(new CancelRequest(processId, secretKey))).then();
     }
 
 }

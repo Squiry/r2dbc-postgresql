@@ -18,7 +18,7 @@ package io.r2dbc.postgresql.util;
 
 import io.netty.channel.Channel;
 import io.r2dbc.postgresql.api.PostgresqlConnection;
-import io.r2dbc.postgresql.client.ReactorNettyClient;
+import io.r2dbc.postgresql.client.ReactorNettyProtocolConnection;
 import org.springframework.beans.DirectFieldAccessor;
 import reactor.netty.Connection;
 
@@ -57,17 +57,17 @@ public final class ConnectionIntrospector {
     }
 
     /**
-     * Return the underlying {@link ReactorNettyClient}.
+     * Return the underlying {@link ReactorNettyProtocolConnection}.
      *
-     * @return the underlying {@link ReactorNettyClient}.
+     * @return the underlying {@link ReactorNettyProtocolConnection}.
      */
-    public ReactorNettyClient getClient() {
+    public ReactorNettyProtocolConnection getClient() {
 
         DirectFieldAccessor accessor = new DirectFieldAccessor(this.connection);
         Object value = accessor.getPropertyValue("client");
 
-        Assert.requireType(value, ReactorNettyClient.class, "Client must be of type ReactorNettyClient. Was: " + value.getClass().getName());
+        Assert.requireType(value, ReactorNettyProtocolConnection.class, "Client must be of type ReactorNettyClient. Was: " + value.getClass().getName());
 
-        return (ReactorNettyClient) value;
+        return (ReactorNettyProtocolConnection) value;
     }
 }

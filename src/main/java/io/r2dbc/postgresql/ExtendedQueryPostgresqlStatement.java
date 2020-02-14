@@ -183,7 +183,7 @@ final class ExtendedQueryPostgresqlStatement implements PostgresqlStatement {
 
     static PostgresqlResult createPostgresqlResult(String sql, ExceptionFactory factory, String statementName, Binding binding, ConnectionContext context, int fetchSize) {
         Flux<BackendMessage> messages = ExtendedQueryMessageFlow
-            .execute(binding, context.getClient(), context.getPortalNameSupplier(), statementName, sql, context.isForceBinary(), fetchSize)
+            .execute(binding, context.getProtocolConnection(), context.getPortalNameSupplier(), statementName, sql, context.isForceBinary(), fetchSize)
             .filter(RESULT_FRAME_FILTER);
         return PostgresqlResult.toResult(context, messages, factory);
     }

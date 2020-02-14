@@ -28,12 +28,12 @@ final class SimpleQueryMessageFlowTest {
 
     @Test
     void exchange() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(new Query("test-query")).thenRespond(new CommandComplete("test", null, null))
             .build();
 
         SimpleQueryMessageFlow
-            .exchange(client, "test-query")
+            .exchange(protocolConnection, "test-query")
             .as(StepVerifier::create)
             .expectNext(new CommandComplete("test", null, null))
             .verifyComplete();
@@ -47,7 +47,7 @@ final class SimpleQueryMessageFlowTest {
 
     @Test
     void exchangeNoQuery() {
-        assertThatIllegalArgumentException().isThrownBy(() -> SimpleQueryMessageFlow.exchange(mock(Client.class), null))
+        assertThatIllegalArgumentException().isThrownBy(() -> SimpleQueryMessageFlow.exchange(mock(ProtocolConnection.class), null))
             .withMessage("query must not be null");
     }
 

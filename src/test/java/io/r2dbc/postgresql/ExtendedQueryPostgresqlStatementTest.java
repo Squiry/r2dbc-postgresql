@@ -18,10 +18,10 @@ package io.r2dbc.postgresql;
 
 import io.r2dbc.postgresql.api.PostgresqlResult;
 import io.r2dbc.postgresql.client.Binding;
-import io.r2dbc.postgresql.client.Client;
+import io.r2dbc.postgresql.client.ProtocolConnection;
 import io.r2dbc.postgresql.client.Parameter;
 import io.r2dbc.postgresql.client.PortalNameSupplier;
-import io.r2dbc.postgresql.client.TestClient;
+import io.r2dbc.postgresql.client.TestProtocolConnection;
 import io.r2dbc.postgresql.codec.MockCodecs;
 import io.r2dbc.postgresql.message.backend.BindComplete;
 import io.r2dbc.postgresql.message.backend.CloseComplete;
@@ -148,7 +148,7 @@ final class ExtendedQueryPostgresqlStatementTest {
 
     @Test
     void execute() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(
                 new Bind("B_0", Collections.singletonList(FORMAT_BINARY), Collections.singletonList(TEST.buffer(4).writeInt(100)), Collections.emptyList(), "test-name"),
                 new Describe("B_0", ExecutionType.PORTAL),
@@ -171,7 +171,7 @@ final class ExtendedQueryPostgresqlStatementTest {
             .build();
 
         PortalNameSupplier portalNameSupplier = new LinkedList<>(Arrays.asList("B_0", "B_1"))::remove;
-        ConnectionContext context = MockContext.builder().client(client).codecs(codecs).portalNameSupplier(portalNameSupplier).build();
+        ConnectionContext context = MockContext.builder().client(protocolConnection).codecs(codecs).portalNameSupplier(portalNameSupplier).build();
 
         when(context.getStatementCache().getName(any(), any())).thenReturn(Mono.just("test-name"));
 
@@ -194,7 +194,7 @@ final class ExtendedQueryPostgresqlStatementTest {
 
     @Test
     void executeErrorAfterBind() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(
                 new Bind("B_0", Collections.singletonList(FORMAT_BINARY), Collections.singletonList(TEST.buffer(4).writeInt(100)), Collections.emptyList(), "test-name"),
                 new Describe("B_0", ExecutionType.PORTAL),
@@ -209,7 +209,7 @@ final class ExtendedQueryPostgresqlStatementTest {
             .build();
 
         PortalNameSupplier portalNameSupplier = new LinkedList<>(Arrays.asList("B_0", "B_1"))::remove;
-        ConnectionContext context = MockContext.builder().client(client).codecs(codecs).portalNameSupplier(portalNameSupplier).build();
+        ConnectionContext context = MockContext.builder().client(protocolConnection).codecs(codecs).portalNameSupplier(portalNameSupplier).build();
 
         when(context.getStatementCache().getName(any(), any())).thenReturn(Mono.just("test-name"));
 
@@ -223,7 +223,7 @@ final class ExtendedQueryPostgresqlStatementTest {
 
     @Test
     void executeErrorResponseRows() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(
                 new Bind("B_0", Collections.singletonList(FORMAT_BINARY), Collections.singletonList(TEST.buffer(4).writeInt(100)), Collections.emptyList(), "test-name"),
                 new Describe("B_0", ExecutionType.PORTAL),
@@ -238,7 +238,7 @@ final class ExtendedQueryPostgresqlStatementTest {
             .build();
 
         PortalNameSupplier portalNameSupplier = new LinkedList<>(Arrays.asList("B_0", "B_1"))::remove;
-        ConnectionContext context = MockContext.builder().client(client).codecs(codecs).portalNameSupplier(portalNameSupplier).build();
+        ConnectionContext context = MockContext.builder().client(protocolConnection).codecs(codecs).portalNameSupplier(portalNameSupplier).build();
 
         when(context.getStatementCache().getName(any(), any())).thenReturn(Mono.just("test-name"));
 
@@ -252,7 +252,7 @@ final class ExtendedQueryPostgresqlStatementTest {
 
     @Test
     void executeErrorResponseRowsUpdated() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(
                 new Bind("B_0", Collections.singletonList(FORMAT_BINARY), Collections.singletonList(TEST.buffer(4).writeInt(100)), Collections.emptyList(), "test-name"),
                 new Describe("B_0", ExecutionType.PORTAL),
@@ -267,7 +267,7 @@ final class ExtendedQueryPostgresqlStatementTest {
             .build();
 
         PortalNameSupplier portalNameSupplier = new LinkedList<>(Arrays.asList("B_0", "B_1"))::remove;
-        ConnectionContext context = MockContext.builder().client(client).codecs(codecs).portalNameSupplier(portalNameSupplier).build();
+        ConnectionContext context = MockContext.builder().client(protocolConnection).codecs(codecs).portalNameSupplier(portalNameSupplier).build();
 
         when(context.getStatementCache().getName(any(), any())).thenReturn(Mono.just("test-name"));
 
@@ -281,7 +281,7 @@ final class ExtendedQueryPostgresqlStatementTest {
 
     @Test
     void executeErrorResponse() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(
                 new Bind("B_0", Collections.singletonList(FORMAT_BINARY), Collections.singletonList(TEST.buffer(4).writeInt(100)), Collections.emptyList(), "test-name"),
                 new Describe("B_0", ExecutionType.PORTAL),
@@ -296,7 +296,7 @@ final class ExtendedQueryPostgresqlStatementTest {
             .build();
 
         PortalNameSupplier portalNameSupplier = new LinkedList<>(Arrays.asList("B_0", "B_1"))::remove;
-        ConnectionContext context = MockContext.builder().client(client).codecs(codecs).portalNameSupplier(portalNameSupplier).build();
+        ConnectionContext context = MockContext.builder().client(protocolConnection).codecs(codecs).portalNameSupplier(portalNameSupplier).build();
 
         when(context.getStatementCache().getName(any(), any())).thenReturn(Mono.just("test-name"));
 
@@ -310,7 +310,7 @@ final class ExtendedQueryPostgresqlStatementTest {
 
     @Test
     void executeWithoutAdd() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(
                 new Bind("B_0", Collections.singletonList(FORMAT_BINARY), Collections.singletonList(TEST.buffer(4).writeInt(100)), Collections.emptyList(), "test-name"),
                 new Describe("B_0", ExecutionType.PORTAL),
@@ -326,7 +326,7 @@ final class ExtendedQueryPostgresqlStatementTest {
             .build();
 
         PortalNameSupplier portalNameSupplier = new LinkedList<>(Arrays.asList("B_0", "B_1"))::remove;
-        ConnectionContext context = MockContext.builder().client(client).codecs(codecs).portalNameSupplier(portalNameSupplier).build();
+        ConnectionContext context = MockContext.builder().client(protocolConnection).codecs(codecs).portalNameSupplier(portalNameSupplier).build();
 
         when(context.getStatementCache().getName(any(), any())).thenReturn(Mono.just("test-name"));
 
@@ -340,7 +340,7 @@ final class ExtendedQueryPostgresqlStatementTest {
 
     @Test
     void executeWithoutResultWithMap() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(
                 new Bind("B_0", Collections.singletonList(FORMAT_BINARY), Collections.singletonList(TEST.buffer(4).writeInt(100)), Collections.emptyList(), "test-name"),
                 new Describe("B_0", ExecutionType.PORTAL),
@@ -356,7 +356,7 @@ final class ExtendedQueryPostgresqlStatementTest {
             .build();
 
         PortalNameSupplier portalNameSupplier = new LinkedList<>(Arrays.asList("B_0", "B_1"))::remove;
-        ConnectionContext context = MockContext.builder().client(client).codecs(codecs).portalNameSupplier(portalNameSupplier).build();
+        ConnectionContext context = MockContext.builder().client(protocolConnection).codecs(codecs).portalNameSupplier(portalNameSupplier).build();
 
         when(context.getStatementCache().getName(any(), any())).thenReturn(Mono.just("test-name"));
 
@@ -372,7 +372,7 @@ final class ExtendedQueryPostgresqlStatementTest {
 
     @Test
     void returnGeneratedValues() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(
                 new Bind("B_0", Collections.singletonList(FORMAT_BINARY), Collections.singletonList(TEST.buffer(4).writeInt(100)), Collections.emptyList(), "test-name"),
                 new Describe("B_0", ExecutionType.PORTAL),
@@ -388,7 +388,7 @@ final class ExtendedQueryPostgresqlStatementTest {
             .build();
 
         PortalNameSupplier portalNameSupplier = new LinkedList<>(Arrays.asList("B_0", "B_1"))::remove;
-        ConnectionContext context = MockContext.builder().client(client).codecs(codecs).portalNameSupplier(portalNameSupplier).build();
+        ConnectionContext context = MockContext.builder().client(protocolConnection).codecs(codecs).portalNameSupplier(portalNameSupplier).build();
 
         when(context.getStatementCache().getName(any(), any())).thenReturn(Mono.just("test-name"));
 

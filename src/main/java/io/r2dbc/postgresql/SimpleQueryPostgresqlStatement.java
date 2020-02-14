@@ -145,7 +145,7 @@ final class SimpleQueryPostgresqlStatement implements PostgresqlStatement {
         }
 
         return SimpleQueryMessageFlow
-            .exchange(this.context.getClient(), sql)
+            .exchange(this.context.getProtocolConnection(), sql)
             .windowUntil(WINDOW_UNTIL)
             .map(dataRow -> PostgresqlResult.toResult(this.context, dataRow, factory))
             .cast(io.r2dbc.postgresql.api.PostgresqlResult.class)

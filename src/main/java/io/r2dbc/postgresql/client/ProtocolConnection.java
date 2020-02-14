@@ -36,7 +36,7 @@ import java.util.function.Predicate;
 /**
  * An abstraction that wraps the networking part of exchanging methods.
  */
-public interface Client {
+public interface ProtocolConnection {
 
     /**
      * Add a consumer of notification messages. Notifications received by this connection are sent to the {@link Consumer notification consumer}. Note that connection errors and events such as
@@ -60,7 +60,7 @@ public interface Client {
     Disposable addNotificationListener(Subscriber<NotificationResponse> consumer);
 
     /**
-     * Release any resources held by the {@link Client}.
+     * Release any resources held by the {@link ProtocolConnection}.
      *
      * @return a {@link Mono} that indicates that a client has been closed
      */

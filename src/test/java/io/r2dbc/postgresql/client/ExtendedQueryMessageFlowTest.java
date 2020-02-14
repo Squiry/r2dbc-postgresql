@@ -43,7 +43,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 
-import static io.r2dbc.postgresql.client.TestClient.NO_OP;
+import static io.r2dbc.postgresql.client.TestProtocolConnection.NO_OP;
 import static io.r2dbc.postgresql.message.Format.FORMAT_BINARY;
 import static io.r2dbc.postgresql.util.TestByteBufAllocator.TEST;
 import static java.util.Collections.emptyList;
@@ -55,7 +55,7 @@ final class ExtendedQueryMessageFlowTest {
     void execute() {
         Binding binding = new Binding(1).add(0, new Parameter(FORMAT_BINARY, 100, Flux.just(TEST.buffer(4).writeInt(200))));
 
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(
                 new Bind("B_0", Collections.singletonList(FORMAT_BINARY), Collections.singletonList(TEST.buffer(4).writeInt(200)), emptyList(), "test-name"),
                 new Describe("B_0", ExecutionType.PORTAL),
@@ -70,7 +70,7 @@ final class ExtendedQueryMessageFlowTest {
 
         PortalNameSupplier portalNameSupplier = new LinkedList<>(Arrays.asList("B_0", "B_1"))::remove;
 
-        ExtendedQueryMessageFlow.execute(binding, client, portalNameSupplier, "test-name", "", false, Execute.NO_LIMIT)
+        ExtendedQueryMessageFlow.execute(binding, protocolConnection, portalNameSupplier, "test-name", "", false, Execute.NO_LIMIT)
             .as(StepVerifier::create)
             .expectNext(BindComplete.INSTANCE, NoData.INSTANCE, new CommandComplete("test", null, null), CloseComplete.INSTANCE)
             .verifyComplete();
@@ -81,7 +81,7 @@ final class ExtendedQueryMessageFlowTest {
     void executeWithFetchSize() {
         Binding binding = new Binding(1).add(0, new Parameter(FORMAT_BINARY, 100, Flux.just(TEST.buffer(4).writeInt(200))));
 
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(
                 new Bind("B_0", Collections.singletonList(FORMAT_BINARY), Collections.singletonList(TEST.buffer(4).writeInt(200)), emptyList(), "test-name"),
                 new Describe("B_0", ExecutionType.PORTAL),
@@ -99,7 +99,7 @@ final class ExtendedQueryMessageFlowTest {
 
         PortalNameSupplier portalNameSupplier = new LinkedList<>(Arrays.asList("B_0", "B_1"))::remove;
 
-        ExtendedQueryMessageFlow.execute(binding, client, portalNameSupplier, "test-name", "", false, 1)
+        ExtendedQueryMessageFlow.execute(binding, protocolConnection, portalNameSupplier, "test-name", "", false, 1)
             .as(StepVerifier::create)
             .expectNext(BindComplete.INSTANCE, new RowDescription(emptyList()), new DataRow(), new DataRow(), new CommandComplete("test", null, null), CloseComplete.INSTANCE)
             .verifyComplete();
@@ -131,20 +131,20 @@ final class ExtendedQueryMessageFlowTest {
 
     @Test
     void parse() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(new Parse("test-name", new int[]{100}, "test-query"), Flush.INSTANCE)
             .thenRespond(ParseComplete.INSTANCE)
             .build();
 
         ExtendedQueryMessageFlow
-            .parse(client, "test-name", "test-query", new int[]{100})
+            .parse(protocolConnection, "test-name", "test-query", new int[]{100})
             .as(StepVerifier::create)
             .verifyComplete();
     }
 
     @Test
     void parseWithError() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(new Parse("test-name", new int[]{100}, "test-query"), Flush.INSTANCE)
             .thenRespond(new ErrorResponse(emptyList()))
             .expectRequest(Sync.INSTANCE)
@@ -152,7 +152,7 @@ final class ExtendedQueryMessageFlowTest {
             .build();
 
         ExtendedQueryMessageFlow
-            .parse(client, "test-name", "test-query", new int[]{100})
+            .parse(protocolConnection, "test-name", "test-query", new int[]{100})
             .as(StepVerifier::create)
             .expectNext(new ErrorResponse(emptyList()))
             .verifyComplete();
@@ -184,13 +184,13 @@ final class ExtendedQueryMessageFlowTest {
 
     @Test
     void closeStatement() {
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .expectRequest(new Close("test-name", ExecutionType.STATEMENT), Sync.INSTANCE)
             .thenRespond(CloseComplete.INSTANCE)
             .build();
 
         ExtendedQueryMessageFlow
-            .closeStatement(client, "test-name")
+            .closeStatement(protocolConnection, "test-name")
             .as(StepVerifier::create)
             .expectNext(CloseComplete.INSTANCE)
             .verifyComplete();

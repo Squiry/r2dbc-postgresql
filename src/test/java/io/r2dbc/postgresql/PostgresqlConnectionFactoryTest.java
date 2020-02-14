@@ -17,8 +17,8 @@
 package io.r2dbc.postgresql;
 
 import com.ongres.scram.client.ScramClient;
-import io.r2dbc.postgresql.client.Client;
-import io.r2dbc.postgresql.client.TestClient;
+import io.r2dbc.postgresql.client.ProtocolConnection;
+import io.r2dbc.postgresql.client.TestProtocolConnection;
 import io.r2dbc.postgresql.message.backend.AuthenticationMD5Password;
 import io.r2dbc.postgresql.message.backend.AuthenticationOk;
 import io.r2dbc.postgresql.message.backend.AuthenticationSASL;
@@ -61,7 +61,7 @@ final class PostgresqlConnectionFactoryTest {
     @Test
     void createAuthenticationMD5Password() {
         // @formatter:off
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .window()
                 .expectRequest(new StartupMessage("test-application-name", "test-database", "test-username", null)).thenRespond(new AuthenticationMD5Password(TEST.buffer(4).writeInt(100)))
                 .expectRequest(new PasswordMessage("md55e9836cdb369d50e3bc7d127e88b4804")).thenRespond(AuthenticationOk.INSTANCE)
@@ -77,7 +77,7 @@ final class PostgresqlConnectionFactoryTest {
             .password("test-password")
             .build();
 
-        new PostgresqlConnectionFactory(c -> Mono.just(client), configuration)
+        new PostgresqlConnectionFactory(c -> Mono.just(protocolConnection), configuration)
             .create()
             .as(StepVerifier::create)
             .expectNextCount(1)
@@ -93,7 +93,7 @@ final class PostgresqlConnectionFactoryTest {
             .setup();
 
         // @formatter:off
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .window()
                 .expectRequest(new StartupMessage("test-application-name", "test-database", "test-username", null)).thenRespond(new AuthenticationSASL(Collections.singletonList("SCRAM-SHA-256")))
                 .expectRequest(new SASLInitialResponse(ByteBufferUtils.encode(scramClient.scramSession("test-username").clientFirstMessage()), "SCRAM-SHA-256")).thenRespond(AuthenticationOk.INSTANCE)
@@ -113,7 +113,7 @@ final class PostgresqlConnectionFactoryTest {
     @Test
     void createError() {
         // @formatter:off
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .window()
                 .expectRequest(new StartupMessage("test-application-name", "test-database", "test-username", null)).thenRespond(new ErrorResponse(Collections.emptyList()))
                 .done()
@@ -128,7 +128,7 @@ final class PostgresqlConnectionFactoryTest {
             .password("test-password")
             .build();
 
-        new PostgresqlConnectionFactory(c -> Mono.just(client), configuration).create()
+        new PostgresqlConnectionFactory(c -> Mono.just(protocolConnection), configuration).create()
             .as(StepVerifier::create)
             .verifyErrorMatches(R2dbcNonTransientResourceException.class::isInstance);
     }
@@ -136,7 +136,7 @@ final class PostgresqlConnectionFactoryTest {
     @Test
     void getMetadata() {
         // @formatter:off
-        Client client = TestClient.builder()
+        ProtocolConnection protocolConnection = TestProtocolConnection.builder()
             .window()
                 .expectRequest(new StartupMessage("test-application-name", "test-database", "test-username", null)).thenRespond(new AuthenticationMD5Password(TEST.buffer(4).writeInt(100)))
                 .expectRequest(new PasswordMessage("md55e9836cdb369d50e3bc7d127e88b4804")).thenRespond(AuthenticationOk.INSTANCE)
@@ -152,7 +152,7 @@ final class PostgresqlConnectionFactoryTest {
             .password("test-password")
             .build();
 
-        assertThat(new PostgresqlConnectionFactory(c -> Mono.just(client), configuration).getMetadata()).isNotNull();
+        assertThat(new PostgresqlConnectionFactory(c -> Mono.just(protocolConnection), configuration).getMetadata()).isNotNull();
     }
 
 }

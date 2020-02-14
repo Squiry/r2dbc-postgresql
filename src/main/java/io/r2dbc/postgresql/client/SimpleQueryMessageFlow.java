@@ -34,16 +34,16 @@ public final class SimpleQueryMessageFlow {
     /**
      * Execute the <a href="https://www.postgresql.org/docs/10/static/protocol-flow.html#idm46428663987712">Simple Query</a> message flow.
      *
-     * @param client the {@link Client} to exchange messages with
+     * @param protocolConnection the {@link ProtocolConnection} to exchange messages with
      * @param query  the query to execute
      * @return the messages received in response to this exchange
      * @throws IllegalArgumentException if {@code client} or {@code query} is {@code null}
      */
-    public static Flux<BackendMessage> exchange(Client client, String query) {
-        Assert.requireNonNull(client, "client must not be null");
+    public static Flux<BackendMessage> exchange(ProtocolConnection protocolConnection, String query) {
+        Assert.requireNonNull(protocolConnection, "client must not be null");
         Assert.requireNonNull(query, "query must not be null");
 
-        return client.exchange(Mono.<FrontendMessage>just(new Query(query)).doOnSubscribe(ignore -> QueryLogger.logQuery(query)));
+        return protocolConnection.exchange(Mono.<FrontendMessage>just(new Query(query)).doOnSubscribe(ignore -> QueryLogger.logQuery(query)));
     }
 
 }
