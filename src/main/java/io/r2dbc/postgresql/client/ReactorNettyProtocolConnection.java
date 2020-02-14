@@ -20,18 +20,8 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.ChannelPipeline;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.ServerChannel;
-import io.netty.channel.epoll.Epoll;
-import io.netty.channel.socket.DatagramChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-import io.netty.handler.logging.LogLevel;
-import io.netty.handler.logging.LoggingHandler;
 import io.netty.util.ReferenceCountUtil;
-import io.netty.util.internal.logging.InternalLogger;
-import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.r2dbc.postgresql.message.backend.BackendKeyData;
 import io.r2dbc.postgresql.message.backend.BackendMessage;
 import io.r2dbc.postgresql.message.backend.BackendMessageDecoder;
@@ -58,10 +48,7 @@ import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
 import reactor.netty.Connection;
-import reactor.netty.resources.ConnectionProvider;
-import reactor.netty.resources.LoopResources;
 import reactor.netty.tcp.TcpClient;
-import reactor.netty.tcp.TcpResources;
 import reactor.util.Logger;
 import reactor.util.Loggers;
 import reactor.util.annotation.Nullable;
@@ -69,9 +56,6 @@ import reactor.util.concurrent.Queues;
 import reactor.util.context.Context;
 
 import javax.net.ssl.SSLException;
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
-import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.Queue;
@@ -133,7 +117,7 @@ public final class ReactorNettyProtocolConnection implements ProtocolConnection 
      * @param connectionResources the resource configuration to open new connections
      * @throws IllegalArgumentException if {@code connection} is {@code null}
      */
-    private ReactorNettyProtocolConnection(Connection connection, ConnectionResources connectionResources) {
+    ReactorNettyProtocolConnection(Connection connection, ConnectionResources connectionResources) {
         Assert.requireNonNull(connection, "Connection must not be null");
         this.connectionResources = Assert.requireNonNull(connectionResources, "connectionProvider must not be null");
 
@@ -312,80 +296,6 @@ public final class ReactorNettyProtocolConnection implements ProtocolConnection 
         this.version = new Version(versionString, versionNum);
     }
 
-    /**
-     * Creates a new frame processor connected to a given host.
-     *
-     * @param host the host to connect to
-     * @param port the port to connect to
-     * @throws IllegalArgumentException if {@code host} is {@code null}
-     */
-    public static Mono<ReactorNettyProtocolConnection> connect(String host, int port) {
-        Assert.requireNonNull(host, "host must not be null");
-
-        return connect(host, port, null, new SSLConfig(SSLMode.DISABLE, null, null));
-    }
-
-    /**
-     * Creates a new frame processor connected to a given host.
-     *
-     * @param host           the host to connect to
-     * @param port           the port to connect to
-     * @param connectTimeout connect timeout
-     * @param sslConfig      SSL configuration
-     * @throws IllegalArgumentException if {@code host} is {@code null}
-     */
-    public static Mono<ReactorNettyProtocolConnection> connect(String host, int port, @Nullable Duration connectTimeout, SSLConfig sslConfig) {
-        return connect(ConnectionProvider.newConnection(), InetSocketAddress.createUnresolved(host, port), connectTimeout, sslConfig);
-    }
-
-    /**
-     * Creates a new frame processor connected to a given host.
-     *
-     * @param connectionProvider the connection provider resources
-     * @param socketAddress      the socketAddress to connect to
-     * @param connectTimeout     connect timeout
-     * @param sslConfig          SSL configuration
-     * @throws IllegalArgumentException if {@code host} is {@code null}
-     */
-    public static Mono<ReactorNettyProtocolConnection> connect(ConnectionProvider connectionProvider, SocketAddress socketAddress, @Nullable Duration connectTimeout, SSLConfig sslConfig) {
-        Assert.requireNonNull(connectionProvider, "connectionProvider must not be null");
-        Assert.requireNonNull(socketAddress, "socketAddress must not be null");
-
-        TcpClient tcpClient = TcpClient.create(connectionProvider).addressSupplier(() -> socketAddress);
-
-        if (!(socketAddress instanceof InetSocketAddress)) {
-            tcpClient = tcpClient.runOn(new SocketLoopResources(), true);
-        }
-
-        if (connectTimeout != null) {
-            tcpClient = tcpClient.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.toIntExact(connectTimeout.toMillis()));
-        }
-
-        return tcpClient.connect().flatMap(it -> {
-
-            ChannelPipeline pipeline = it.channel().pipeline();
-
-            InternalLogger logger = InternalLoggerFactory.getInstance(ReactorNettyProtocolConnection.class);
-            if (logger.isTraceEnabled()) {
-                pipeline.addFirst(LoggingHandler.class.getSimpleName(),
-                    new LoggingHandler(ReactorNettyProtocolConnection.class, LogLevel.TRACE));
-            }
-
-            return registerSslHandler(sslConfig, it).thenReturn(new ReactorNettyProtocolConnection(it, new ConnectionResources(connectTimeout, connectionProvider, sslConfig)));
-        });
-    }
-
-    private static Mono<? extends Void> registerSslHandler(SSLConfig sslConfig, Connection it) {
-
-        if (sslConfig.getSslMode().startSsl()) {
-            SSLSessionHandlerAdapter sslSessionHandlerAdapter = new SSLSessionHandlerAdapter(it.outbound().alloc(), sslConfig);
-            it.addHandlerFirst(sslSessionHandlerAdapter);
-            return sslSessionHandlerAdapter.getHandshake();
-        }
-
-        return Mono.empty();
-    }
-
     @Override
     public Disposable addNotificationListener(Consumer<NotificationResponse> consumer) {
         return this.notificationProcessor.subscribe(consumer);
@@ -440,10 +350,8 @@ public final class ReactorNettyProtocolConnection implements ProtocolConnection 
         return Mono.defer(() -> {
             int processId = this.getProcessId().orElseThrow(() -> new IllegalStateException("Connection does not yet have a processId"));
             int secretKey = this.getSecretKey().orElseThrow(() -> new IllegalStateException("Connection does not yet have a secretKey"));
-
-            return ReactorNettyProtocolConnection.connect(this.connectionResources.getConnectionProvider(), this.connection.channel().remoteAddress(), this.connectionResources.getConnectTimeout(),
-                this.connectionResources.getSslConfig())
-                .flatMap(protocolConnection -> CancelRequestMessageFlow.exchange(protocolConnection, processId, secretKey).then(Mono.defer(protocolConnection::closeConnection))
+            return ReactorNettyProtocolConnectionFactory.INSTANCE.connect(this.connection.channel().remoteAddress(), this.connectionResources)
+                .flatMap(client -> CancelRequestMessageFlow.exchange(client, processId, secretKey).then(Mono.defer(client::closeConnection))
                     .onErrorResume(PostgresConnectionClosedException.class::isInstance, e -> Mono.empty()));
         });
     }
@@ -530,108 +438,7 @@ public final class ReactorNettyProtocolConnection implements ProtocolConnection 
         }
     }
 
-    static class SocketLoopResources implements LoopResources {
 
-        @Nullable
-        private static final Class<? extends Channel> EPOLL_SOCKET = findClass("io.netty.channel.epoll.EpollDomainSocketChannel");
-
-        @Nullable
-        private static final Class<? extends Channel> KQUEUE_SOCKET = findClass("io.netty.channel.kqueue.KQueueDomainSocketChannel");
-
-        private static final boolean kqueue;
-
-        static {
-            boolean kqueueCheck = false;
-            try {
-                Class.forName("io.netty.channel.kqueue.KQueue");
-                kqueueCheck = io.netty.channel.kqueue.KQueue.isAvailable();
-            } catch (ClassNotFoundException cnfe) {
-            }
-            kqueue = kqueueCheck;
-        }
-
-        private static final boolean epoll;
-
-        static {
-            boolean epollCheck = false;
-            try {
-                Class.forName("io.netty.channel.epoll.Epoll");
-                epollCheck = Epoll.isAvailable();
-            } catch (ClassNotFoundException cnfe) {
-            }
-            epoll = epollCheck;
-        }
-
-        private final LoopResources delegate = TcpResources.get();
-
-        @SuppressWarnings("unchecked")
-        private static Class<? extends Channel> findClass(String className) {
-            try {
-                return (Class<? extends Channel>) SocketLoopResources.class.getClassLoader().loadClass(className);
-            } catch (ClassNotFoundException e) {
-                return null;
-            }
-        }
-
-        @Override
-        public Class<? extends Channel> onChannel(EventLoopGroup group) {
-
-            if (epoll && EPOLL_SOCKET != null) {
-                return EPOLL_SOCKET;
-            }
-
-            if (kqueue && KQUEUE_SOCKET != null) {
-                return KQUEUE_SOCKET;
-            }
-
-            return this.delegate.onChannel(group);
-        }
-
-        @Override
-        public EventLoopGroup onClient(boolean useNative) {
-            return this.delegate.onClient(useNative);
-        }
-
-        @Override
-        public Class<? extends DatagramChannel> onDatagramChannel(EventLoopGroup group) {
-            return this.delegate.onDatagramChannel(group);
-        }
-
-        @Override
-        public EventLoopGroup onServer(boolean useNative) {
-            return this.delegate.onServer(useNative);
-        }
-
-        @Override
-        public Class<? extends ServerChannel> onServerChannel(EventLoopGroup group) {
-            return this.delegate.onServerChannel(group);
-        }
-
-        @Override
-        public EventLoopGroup onServerSelect(boolean useNative) {
-            return this.delegate.onServerSelect(useNative);
-        }
-
-        @Override
-        public boolean preferNative() {
-            return this.delegate.preferNative();
-        }
-
-        @Override
-        public boolean daemon() {
-            return this.delegate.daemon();
-        }
-
-        @Override
-        public void dispose() {
-            this.delegate.dispose();
-        }
-
-        @Override
-        public Mono<Void> disposeLater() {
-            return this.delegate.disposeLater();
-        }
-    }
 
 
     /**
@@ -950,32 +757,4 @@ public final class ReactorNettyProtocolConnection implements ProtocolConnection 
         }
     }
 
-    static class ConnectionResources {
-
-        @Nullable
-        private final Duration connectTimeout;
-
-        private final ConnectionProvider connectionProvider;
-
-        private final SSLConfig sslConfig;
-
-        public ConnectionResources(@Nullable Duration connectTimeout, ConnectionProvider connectionProvider, SSLConfig sslConfig) {
-            this.connectTimeout = connectTimeout;
-            this.connectionProvider = connectionProvider;
-            this.sslConfig = sslConfig;
-        }
-
-        @Nullable
-        public Duration getConnectTimeout() {
-            return this.connectTimeout;
-        }
-
-        public ConnectionProvider getConnectionProvider() {
-            return this.connectionProvider;
-        }
-
-        public SSLConfig getSslConfig() {
-            return this.sslConfig;
-        }
-    }
 }

@@ -64,7 +64,7 @@ public final class ConnectionIntrospector {
     public ReactorNettyProtocolConnection getClient() {
 
         DirectFieldAccessor accessor = new DirectFieldAccessor(this.connection);
-        Object value = accessor.getPropertyValue("client");
+        Object value = accessor.getPropertyValue("protocolConnection");
 
         Assert.requireType(value, ReactorNettyProtocolConnection.class, "Client must be of type ReactorNettyClient. Was: " + value.getClass().getName());
 

@@ -22,7 +22,6 @@ import io.netty.util.ReferenceCountUtil;
 import io.r2dbc.postgresql.PostgresqlConnectionConfiguration;
 import io.r2dbc.postgresql.PostgresqlConnectionFactory;
 import io.r2dbc.postgresql.api.PostgresqlConnection;
-import io.r2dbc.postgresql.authentication.PasswordAuthenticationHandler;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.message.backend.BackendMessage;
 import io.r2dbc.postgresql.message.backend.BindComplete;
@@ -58,6 +57,7 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSession;
 import java.io.File;
 import java.lang.reflect.Field;
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
@@ -86,11 +86,11 @@ final class ReactorNettyProtocolConnectionIntegrationTests {
         ReflectionUtils.makeAccessible(CONNECTION);
     }
 
-    private final ReactorNettyProtocolConnection client = ReactorNettyProtocolConnection.connect(SERVER.getHost(), SERVER.getPort())
-        .delayUntil(client -> StartupMessageFlow
-            .exchange(this.getClass().getName(), m -> new PasswordAuthenticationHandler(SERVER.getPassword(), SERVER.getUsername()), client, SERVER.getDatabase(), SERVER.getUsername(),
-                Collections.emptyMap()))
+    private final ReactorNettyProtocolConnection client = ReactorNettyProtocolConnectionFactory.INSTANCE
+        .connect(InetSocketAddress.createUnresolved(SERVER.getHost(), SERVER.getPort()), SERVER.getConnectionConfiguration(), null)
+        .cast(ReactorNettyProtocolConnection.class)
         .block();
+
 
     @Test
     void close() {
@@ -163,12 +163,6 @@ final class ReactorNettyProtocolConnectionIntegrationTests {
         SERVER.getJdbcOperations().execute("DROP TABLE IF EXISTS test");
         this.client.close()
             .block();
-    }
-
-    @Test
-    void constructorNoHost() {
-        assertThatIllegalArgumentException().isThrownBy(() -> ReactorNettyProtocolConnection.connect(null, SERVER.getPort()))
-            .withMessage("host must not be null");
     }
 
     @BeforeEach

@@ -17,6 +17,7 @@
 package io.r2dbc.postgresql;
 
 import com.ongres.scram.client.ScramClient;
+import io.r2dbc.postgresql.client.ConnectionResources;
 import io.r2dbc.postgresql.client.ProtocolConnection;
 import io.r2dbc.postgresql.client.TestProtocolConnection;
 import io.r2dbc.postgresql.message.backend.AuthenticationMD5Password;
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.net.SocketAddress;
 import java.util.Collections;
 
 import static com.ongres.scram.client.ScramClient.ChannelBinding.NO;
@@ -77,7 +79,7 @@ final class PostgresqlConnectionFactoryTest {
             .password("test-password")
             .build();
 
-        new PostgresqlConnectionFactory(c -> Mono.just(protocolConnection), configuration)
+        new PostgresqlConnectionFactory(connectionFactory(protocolConnection), configuration)
             .create()
             .as(StepVerifier::create)
             .expectNextCount(1)
@@ -128,7 +130,7 @@ final class PostgresqlConnectionFactoryTest {
             .password("test-password")
             .build();
 
-        new PostgresqlConnectionFactory(c -> Mono.just(protocolConnection), configuration).create()
+        new PostgresqlConnectionFactory(connectionFactory(protocolConnection), configuration).create()
             .as(StepVerifier::create)
             .verifyErrorMatches(R2dbcNonTransientResourceException.class::isInstance);
     }
@@ -152,7 +154,18 @@ final class PostgresqlConnectionFactoryTest {
             .password("test-password")
             .build();
 
-        assertThat(new PostgresqlConnectionFactory(c -> Mono.just(protocolConnection), configuration).getMetadata()).isNotNull();
+        assertThat(new PostgresqlConnectionFactory(connectionFactory(protocolConnection), configuration).getMetadata()).isNotNull();
+    }
+
+
+    private ProtocolConnectionFactory connectionFactory(ProtocolConnection protocolConnection) {
+        return new ProtocolConnectionFactory() {
+
+            @Override
+            public Mono<ProtocolConnection> connect(SocketAddress socketAddress, ConnectionResources connectionResources) {
+                return Mono.just(protocolConnection);
+            }
+        };
     }
 
 }
